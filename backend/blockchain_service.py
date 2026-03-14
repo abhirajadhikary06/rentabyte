@@ -82,13 +82,20 @@ def verify_transaction(tx_hash: str, buyer_wallet: str, storage_mb: int) -> dict
             "value_wei": int(tx["value"])
         }
 
-    # Verify receiver (platform wallet or smart contract)
+    # Verify receiver (accept contract and/or platform wallet)
     receiver = tx.get("to", "").lower() if tx.get("to") else ""
-    expected_receiver = (CONTRACT_ADDRESS or PLATFORM_WALLET).lower()
-    if expected_receiver and receiver != expected_receiver:
+    valid_receivers = {
+        addr.lower()
+        for addr in (CONTRACT_ADDRESS, PLATFORM_WALLET)
+        if addr
+    }
+    if valid_receivers and receiver not in valid_receivers:
         return {
             "valid": False,
-            "reason": f"Receiver mismatch: expected {expected_receiver}, got {receiver}",
+            "reason": (
+                "Receiver mismatch: expected one of "
+                f"{', '.join(sorted(valid_receivers))}, got {receiver}"
+            ),
             "value_wei": int(tx["value"])
         }
 
