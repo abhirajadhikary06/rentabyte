@@ -22,7 +22,7 @@ const AMOY_BLOCK_EXPLORER = "https://amoy.polygonscan.com";
 const AMOY_CURRENCY     = { name: "POL", symbol: "POL", decimals: 18 };
 
 // Pricing: must match backend .env  POL_PER_100MB
-const POL_PER_100MB = 0.01;
+const POL_PER_100MB = 0.001;
 
 // Minimal ABI – only the payForStorage function we need
 const CONTRACT_ABI = [

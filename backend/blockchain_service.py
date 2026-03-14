@@ -22,8 +22,8 @@ POLYGON_AMOY_RPC = os.getenv(
 # Contract address for the RentAByte smart contract (deploy with Hardhat)
 CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS", "")
 
-# Minimum POL per 100 MB (in wei).  0.01 POL = 100 MB for demo purposes.
-POL_PER_100MB = float(os.getenv("POL_PER_100MB", "0.01"))
+# Minimum POL per 100 MB (in wei).  0.001 POL = 100 MB for demo purposes.
+POL_PER_100MB = float(os.getenv("POL_PER_100MB", "0.001"))
 
 # Platform wallet that receives payments
 PLATFORM_WALLET = os.getenv("PLATFORM_WALLET", "").lower()

@@ -96,15 +96,20 @@ def pick_node_for_chunk(nodes: List[dict], chunk_size: int) -> dict | None:
     return None
 
 
-def deduct_node_storage(node_id: int, bytes_used: int):
+def deduct_node_storage(node_id: int, bytes_used: int, conn=None):
     """Reduce available_storage on a node after a chunk is stored."""
-    conn = get_connection()
+    owns_connection = conn is None
+    if owns_connection:
+        conn = get_connection()
+
     conn.execute(
         "UPDATE storage_nodes SET available_storage = available_storage - ? WHERE node_id = ?",
         (bytes_used, node_id)
     )
-    conn.commit()
-    conn.close()
+
+    if owns_connection:
+        conn.commit()
+        conn.close()
 
 
 def restore_node_storage(node_id: int, bytes_freed: int):
@@ -192,8 +197,8 @@ def store_file(
                 n["available_storage"] -= len(chunk)
                 break
 
-        # Deduct from DB
-        deduct_node_storage(node["node_id"], len(chunk))
+        # Deduct from DB using the same transaction/connection to avoid lock contention
+        deduct_node_storage(node["node_id"], len(chunk), conn=conn)
 
     conn.commit()
     conn.close()

@@ -161,7 +161,7 @@
           </div>
 
           <div class="alert alert-info" id="price-preview">
-            💡 Cost: <strong id="cost-preview">0.05</strong> POL for
+            💡 Cost: <strong id="cost-preview">0.005</strong> POL for
             <strong id="mb-preview">500</strong> MB
           </div>
 
@@ -182,7 +182,7 @@
           </div>
           <ol class="step-list">
             <li><div><strong>Connect MetaMask</strong><br><span style="color:var(--text-muted);font-size:0.85rem">Polygon Amoy Testnet (free test POL from faucet)</span></div></li>
-            <li><div><strong>Choose storage size</strong><br><span style="color:var(--text-muted);font-size:0.85rem">100 MB = 0.01 POL. Pay instantly via MetaMask</span></div></li>
+            <li><div><strong>Choose storage size</strong><br><span style="color:var(--text-muted);font-size:0.85rem">100 MB = 0.001 POL. Pay instantly via MetaMask</span></div></li>
             <li><div><strong>Upload files</strong><br><span style="color:var(--text-muted);font-size:0.85rem">Files are encrypted, split into 5 MB chunks &amp; distributed</span></div></li>
             <li><div><strong>Download anytime</strong><br><span style="color:var(--text-muted);font-size:0.85rem">Chunks are reassembled and decrypted on demand</span></div></li>
           </ol>
@@ -301,8 +301,8 @@
   // ── Page-specific config ────────────────────────────────────────────────
   // Override these via your deployment environment or hardcode after Hardhat deploy
   window.RENTABYTE_API_BASE        = "http://localhost:8000";
-  window.RENTABYTE_CONTRACT        = "";          // e.g. "0xYourContract"
-  window.RENTABYTE_PLATFORM_WALLET = "";          // fallback wallet if no contract
+  window.RENTABYTE_CONTRACT        = "0xe21092e562933E14F2F8D624D04E5a000e356835";
+  window.RENTABYTE_PLATFORM_WALLET = "0xC913d8B68ACCFE2b1AEB8805D48D802547C827A1";
 
   // ── Init ────────────────────────────────────────────────────────────────
   document.addEventListener("DOMContentLoaded", async () => {

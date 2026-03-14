@@ -11,9 +11,11 @@ DB_PATH = os.getenv("DB_PATH", "rentabyte.db")
 
 def get_connection():
     """Return a new SQLite connection with row factory enabled."""
-    conn = sqlite3.connect(DB_PATH)
+    # timeout helps SQLite wait for short-lived writer locks instead of failing fast
+    conn = sqlite3.connect(DB_PATH, timeout=30)
     conn.row_factory = sqlite3.Row  # access columns by name
     conn.execute("PRAGMA journal_mode=WAL")  # better concurrency
+    conn.execute("PRAGMA busy_timeout=30000")
     return conn
 
 
