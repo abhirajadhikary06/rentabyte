@@ -1,22 +1,58 @@
 """
 RentAByte - Database Module
-Handles SQLite initialization and connection management.
+Handles PostgreSQL (Neon) initialization and connection management.
 """
 
-import sqlite3
 import os
 
-DB_PATH = os.getenv("DB_PATH", "rentabyte.db")
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file for local development
+DATABASE_URL = os.getenv("NEONDB_DATABASE_URL", "").strip()
+
+
+class PostgresConnection:
+    """Compatibility wrapper to support conn.execute(...) style calls."""
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, query, params=None):
+        cursor = self._conn.cursor()
+        cursor.execute(query, params or ())
+        return cursor
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self):
+        return self._conn.close()
+
+    def __getattr__(self, item):
+        return getattr(self._conn, item)
 
 
 def get_connection():
-    """Return a new SQLite connection with row factory enabled."""
-    # timeout helps SQLite wait for short-lived writer locks instead of failing fast
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.row_factory = sqlite3.Row  # access columns by name
-    conn.execute("PRAGMA journal_mode=WAL")  # better concurrency
-    conn.execute("PRAGMA busy_timeout=30000")
-    return conn
+    """Return a new PostgreSQL connection with dict-like row access."""
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "NEONDB_DATABASE_URL is not set. Please configure backend/.env."
+        )
+
+    conn = psycopg2.connect(
+        DATABASE_URL,
+        sslmode="require",
+        cursor_factory=RealDictCursor,
+    )
+    conn.autocommit = False
+    return PostgresConnection(conn)
 
 
 def init_db():
@@ -29,10 +65,10 @@ def init_db():
     # ------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            id               BIGSERIAL PRIMARY KEY,
             wallet_address   TEXT UNIQUE NOT NULL,
             dropbox_token    TEXT,
-            created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -41,12 +77,12 @@ def init_db():
     # ------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS storage_nodes (
-            node_id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id           INTEGER NOT NULL REFERENCES users(id),
+            node_id           BIGSERIAL PRIMARY KEY,
+            user_id           BIGINT NOT NULL REFERENCES users(id),
             provider          TEXT NOT NULL DEFAULT 'dropbox',
-            total_storage     INTEGER NOT NULL,   -- bytes
-            available_storage INTEGER NOT NULL,   -- bytes
-            created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+            total_storage     BIGINT NOT NULL,   -- bytes
+            available_storage BIGINT NOT NULL,   -- bytes
+            created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -58,9 +94,9 @@ def init_db():
             file_id         TEXT PRIMARY KEY,          -- UUID
             owner_wallet    TEXT NOT NULL,
             original_name   TEXT NOT NULL,
-            file_size       INTEGER NOT NULL,          -- bytes
+            file_size       BIGINT NOT NULL,           -- bytes
             tx_hash         TEXT,                      -- payment tx
-            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -69,13 +105,13 @@ def init_db():
     # ------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS chunks (
-            chunk_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            chunk_id      BIGSERIAL PRIMARY KEY,
             file_id       TEXT NOT NULL REFERENCES files(file_id),
-            node_id       INTEGER NOT NULL REFERENCES storage_nodes(node_id),
+            node_id       BIGINT NOT NULL REFERENCES storage_nodes(node_id),
             chunk_index   INTEGER NOT NULL,
             chunk_hash    TEXT NOT NULL,
             dropbox_path  TEXT NOT NULL,
-            chunk_size    INTEGER NOT NULL   -- bytes
+            chunk_size    BIGINT NOT NULL   -- bytes
         )
     """)
 
@@ -84,12 +120,12 @@ def init_db():
     # ------------------------------------------------------------------
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS storage_allocations (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            id              BIGSERIAL PRIMARY KEY,
             wallet_address  TEXT NOT NULL,
-            allocated_bytes INTEGER NOT NULL,
-            used_bytes      INTEGER NOT NULL DEFAULT 0,
+            allocated_bytes BIGINT NOT NULL,
+            used_bytes      BIGINT NOT NULL DEFAULT 0,
             tx_hash         TEXT NOT NULL UNIQUE,
-            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 

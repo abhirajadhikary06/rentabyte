@@ -17,7 +17,8 @@ The script will:
 import sys
 import os
 import hashlib
-
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file for local development
 # Allow imports from backend/
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 

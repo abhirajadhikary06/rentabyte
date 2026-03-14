@@ -12,7 +12,8 @@ Example:
 import sys
 import os
 import re
-
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file for local development
 # Allow running from project root or scripts/ directory
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 

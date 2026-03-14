@@ -11,7 +11,8 @@ deployed ERC-20 contract.
 import os
 from web3 import Web3
 from web3.exceptions import TransactionNotFound
-
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file for local development
 # ── RPC Configuration ──────────────────────────────────────────────────────
 
 POLYGON_AMOY_RPC = os.getenv(

@@ -17,7 +17,8 @@ from cryptography.fernet import Fernet
 
 from database import get_connection
 import dropbox_service
-
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file for local development
 # ── Constants ──────────────────────────────────────────────────────────────
 
 CHUNK_SIZE_BYTES = int(os.getenv("CHUNK_SIZE_MB", "5")) * 1024 * 1024   # 5 MB
@@ -81,7 +82,7 @@ def get_available_nodes(required_bytes: int) -> List[dict]:
                u.dropbox_token
         FROM storage_nodes sn
         JOIN users u ON u.id = sn.user_id
-        WHERE sn.available_storage >= ?
+        WHERE sn.available_storage >= %s
         ORDER BY sn.available_storage DESC
     """, (CHUNK_SIZE_BYTES,)).fetchall()
     conn.close()
@@ -103,7 +104,7 @@ def deduct_node_storage(node_id: int, bytes_used: int, conn=None):
         conn = get_connection()
 
     conn.execute(
-        "UPDATE storage_nodes SET available_storage = available_storage - ? WHERE node_id = ?",
+        "UPDATE storage_nodes SET available_storage = available_storage - %s WHERE node_id = %s",
         (bytes_used, node_id)
     )
 
@@ -116,7 +117,7 @@ def restore_node_storage(node_id: int, bytes_freed: int):
     """Restore available_storage when a file is deleted."""
     conn = get_connection()
     conn.execute(
-        "UPDATE storage_nodes SET available_storage = available_storage + ? WHERE node_id = ?",
+        "UPDATE storage_nodes SET available_storage = available_storage + %s WHERE node_id = %s",
         (bytes_freed, node_id)
     )
     conn.commit()
@@ -155,7 +156,7 @@ def store_file(
     # ── Insert file record ──────────────────────────────────────────────────
     conn.execute("""
         INSERT INTO files (file_id, owner_wallet, original_name, file_size, tx_hash)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
     """, (file_id, owner_wallet, original_name, len(file_data), tx_hash))
 
     # ── Distribute chunks ───────────────────────────────────────────────────
@@ -188,7 +189,7 @@ def store_file(
         conn.execute("""
             INSERT INTO chunks
               (file_id, node_id, chunk_index, chunk_hash, dropbox_path, chunk_size)
-            VALUES (?, ?, ?, ?, ?, ?)
+                        VALUES (%s, %s, %s, %s, %s, %s)
         """, (file_id, node["node_id"], idx, chunk_hash, dropbox_path, len(chunk)))
 
         # Deduct from node's in-memory pool so the next chunk picks correctly
@@ -222,7 +223,7 @@ def retrieve_file(file_id: str, requester_wallet: str) -> Tuple[bytes, str]:
     conn = get_connection()
 
     file_row = conn.execute(
-        "SELECT * FROM files WHERE file_id = ?", (file_id,)
+        "SELECT * FROM files WHERE file_id = %s", (file_id,)
     ).fetchone()
 
     if file_row is None:
@@ -240,7 +241,7 @@ def retrieve_file(file_id: str, requester_wallet: str) -> Tuple[bytes, str]:
         FROM chunks c
         JOIN storage_nodes sn ON sn.node_id = c.node_id
         JOIN users u ON u.id = sn.user_id
-        WHERE c.file_id = ?
+        WHERE c.file_id = %s
         ORDER BY c.chunk_index ASC
     """, (file_id,)).fetchall()
     conn.close()
@@ -280,7 +281,7 @@ def list_files_for_wallet(owner_wallet: str) -> List[dict]:
     rows = conn.execute("""
         SELECT file_id, original_name, file_size, created_at
         FROM files
-        WHERE owner_wallet = ?
+        WHERE owner_wallet = %s
         ORDER BY created_at DESC
     """, (owner_wallet,)).fetchall()
     conn.close()

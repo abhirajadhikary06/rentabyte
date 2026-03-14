@@ -10,7 +10,8 @@ import dropbox
 from dropbox.exceptions import ApiError, AuthError
 from dropbox.files import WriteMode
 import io
-
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file for local development
 
 CHUNK_FOLDER = "/rentabyte_chunks"   # folder created in the seller's Dropbox
 

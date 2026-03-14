@@ -70,12 +70,12 @@ def connect_wallet(req: ConnectWalletRequest):
 
     conn = get_connection()
     existing = conn.execute(
-        "SELECT id FROM users WHERE wallet_address = ?", (wallet,)
+        "SELECT id FROM users WHERE wallet_address = %s", (wallet,)
     ).fetchone()
 
     if existing is None:
         conn.execute(
-            "INSERT INTO users (wallet_address) VALUES (?)", (wallet,)
+            "INSERT INTO users (wallet_address) VALUES (%s)", (wallet,)
         )
         conn.commit()
         message = "Wallet registered successfully."
@@ -102,7 +102,7 @@ def connect_dropbox(req: ConnectDropboxRequest):
     conn = get_connection()
 
     user = conn.execute(
-        "SELECT id FROM users WHERE wallet_address = ?", (wallet,)
+        "SELECT id FROM users WHERE wallet_address = %s", (wallet,)
     ).fetchone()
     if user is None:
         conn.close()
@@ -118,7 +118,7 @@ def connect_dropbox(req: ConnectDropboxRequest):
         )
 
     conn.execute(
-        "UPDATE users SET dropbox_token = ? WHERE wallet_address = ?",
+        "UPDATE users SET dropbox_token = %s WHERE wallet_address = %s",
         (req.dropbox_token, wallet)
     )
     conn.commit()
@@ -143,7 +143,7 @@ def register_storage(req: RegisterStorageRequest):
     conn = get_connection()
 
     user = conn.execute(
-        "SELECT id, dropbox_token FROM users WHERE wallet_address = ?", (wallet,)
+        "SELECT id, dropbox_token FROM users WHERE wallet_address = %s", (wallet,)
     ).fetchone()
     if user is None:
         conn.close()
@@ -170,9 +170,10 @@ def register_storage(req: RegisterStorageRequest):
     # Insert storage node
     cursor = conn.execute("""
         INSERT INTO storage_nodes (user_id, provider, total_storage, available_storage)
-        VALUES (?, 'dropbox', ?, ?)
+        VALUES (%s, 'dropbox', %s, %s)
+        RETURNING node_id
     """, (user["id"], requested_bytes, requested_bytes))
-    node_id = cursor.lastrowid
+    node_id = cursor.fetchone()["node_id"]
     conn.commit()
     conn.close()
 
@@ -222,7 +223,7 @@ def request_storage(req: RequestStorageRequest):
     # Prevent double-spend: check tx_hash not already used
     conn = get_connection()
     existing_tx = conn.execute(
-        "SELECT id FROM storage_allocations WHERE tx_hash = ?", (req.tx_hash,)
+        "SELECT id FROM storage_allocations WHERE tx_hash = %s", (req.tx_hash,)
     ).fetchone()
     if existing_tx:
         conn.close()
@@ -240,16 +241,16 @@ def request_storage(req: RequestStorageRequest):
 
     # Ensure user exists
     user = conn.execute(
-        "SELECT id FROM users WHERE wallet_address = ?", (wallet,)
+        "SELECT id FROM users WHERE wallet_address = %s", (wallet,)
     ).fetchone()
     if user is None:
-        conn.execute("INSERT INTO users (wallet_address) VALUES (?)", (wallet,))
+        conn.execute("INSERT INTO users (wallet_address) VALUES (%s)", (wallet,))
         conn.commit()
 
     allocated_bytes = req.storage_mb * 1024 * 1024
     conn.execute("""
         INSERT INTO storage_allocations (wallet_address, allocated_bytes, tx_hash)
-        VALUES (?, ?, ?)
+        VALUES (%s, %s, %s)
     """, (wallet, allocated_bytes, req.tx_hash))
     conn.commit()
     conn.close()
@@ -283,7 +284,7 @@ async def upload_file(
     alloc = conn.execute("""
         SELECT id, allocated_bytes, used_bytes
         FROM storage_allocations
-        WHERE wallet_address = ? AND tx_hash = ?
+        WHERE wallet_address = %s AND tx_hash = %s
     """, (wallet, tx_hash)).fetchone()
 
     if alloc is None:
@@ -315,8 +316,8 @@ async def upload_file(
     # Update used_bytes
     conn.execute("""
         UPDATE storage_allocations
-        SET used_bytes = used_bytes + ?
-        WHERE id = ?
+        SET used_bytes = used_bytes + %s
+        WHERE id = %s
     """, (file_size, alloc["id"]))
     conn.commit()
     conn.close()
