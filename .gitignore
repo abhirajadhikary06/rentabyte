@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+*.db
+
+# Environment secrets — NEVER commit
+.env
+backend/.env
+
+# Node / Hardhat
+node_modules/
+artifacts/
+cache/
+typechain-types/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Logs
+*.log

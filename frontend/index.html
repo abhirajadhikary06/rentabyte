@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RentAByte – Decentralised Storage Marketplace</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- ethers.js v6 CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.1/ethers.umd.min.js"></script>
+  <style>
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+    .role-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .role-tab  { flex: 1; padding: 0.7rem; text-align: center; border: 1px solid var(--border);
+                 border-radius: var(--radius-sm); cursor: pointer; transition: all var(--transition);
+                 background: transparent; color: var(--text-secondary); font-weight: 600; }
+    .role-tab.active { border-color: var(--accent-purple); background: rgba(124,58,237,0.15); color: #a78bfa; }
+    .role-panel { display: none; }
+    .role-panel.active { display: block; }
+
+    .step-list { counter-reset: steps; list-style: none; }
+    .step-list li {
+      counter-increment: steps;
+      display: flex; align-items: flex-start; gap: 1rem;
+      padding: 0.8rem 0; border-bottom: 1px solid var(--border);
+    }
+    .step-list li:last-child { border-bottom: none; }
+    .step-list li::before {
+      content: counter(steps);
+      display: flex; align-items: center; justify-content: center;
+      min-width: 28px; height: 28px;
+      background: rgba(124,58,237,0.2); border-radius: 50%;
+      color: #a78bfa; font-size: 0.8rem; font-weight: 700;
+    }
+
+    .pool-ring {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent-purple) var(--used-pct, 0%), var(--bg-base) 0%);
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+      margin: 0 auto 1rem;
+    }
+    .pool-ring::before {
+      content: '';
+      position: absolute; inset: 14px;
+      background: var(--bg-card);
+      border-radius: 50%;
+    }
+    .pool-ring-label {
+      position: relative; z-index: 1;
+      font-size: 1.1rem; font-weight: 700;
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+<nav>
+  <div class="container nav-inner">
+    <a href="index.html" class="nav-logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" fill="url(#g1)"/>
+        <path d="M2 17l10 5 10-5" stroke="url(#g1)" stroke-width="2" fill="none"/>
+        <path d="M2 12l10 5 10-5" stroke="url(#g1)" stroke-width="2" fill="none"/>
+        <defs>
+          <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#7c3aed"/>
+            <stop offset="100%" stop-color="#06b6d4"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      RentAByte
+    </a>
+    <div class="nav-links">
+      <a href="index.html" class="active">Dashboard</a>
+      <a href="upload.html">My Files</a>
+      <a href="https://faucet.polygon.technology" target="_blank">Get Test POL</a>
+    </div>
+    <button id="btn-connect-wallet" class="btn btn-primary" onclick="handleConnectWallet()">
+      🦊 Connect MetaMask
+    </button>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────────────────────── -->
+<div class="container">
+  <section class="hero">
+    <div class="hero-badge">⛓ Polygon Amoy Testnet</div>
+    <h1>Rent unused storage.<br><span>Pay with crypto.</span></h1>
+    <p class="subtitle">
+      RentAByte connects people who have spare Dropbox space with buyers
+      who need affordable, decentralised cloud storage — all payments on Polygon.
+    </p>
+    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="handleConnectWallet()">🦊 Get Started</button>
+      <a href="upload.html" class="btn btn-outline">📁 Upload Files</a>
+    </div>
+  </section>
+
+  <!-- ── Pool Stats ────────────────────────────────────────────────────────── -->
+  <div id="alert-area"></div>
+
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-value" id="pool-total">…</span>
+      <span class="stat-label">Total Pool</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="pool-available">…</span>
+      <span class="stat-label">Available</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="pool-nodes">…</span>
+      <span class="stat-label">Storage Nodes</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="pool-price">…</span>
+      <span class="stat-label">Price</span>
+    </div>
+    <div class="stat-item" style="flex:1;min-width:160px">
+      <span class="stat-label">Pool Utilisation</span>
+      <div class="progress-bar">
+        <div class="progress-fill" id="pool-progress-fill" style="width:0%"></div>
+      </div>
+      <span style="font-size:0.8rem;color:var(--text-muted);margin-top:0.3rem" id="pool-used-pct">0%</span>
+    </div>
+  </div>
+
+  <!-- ── Role Selector ─────────────────────────────────────────────────────── -->
+  <section>
+    <div class="role-tabs">
+      <button class="role-tab active" onclick="switchRole('buyer')">🛒 I'm a Buyer</button>
+      <button class="role-tab"        onclick="switchRole('seller')">💾 I'm a Seller</button>
+    </div>
+
+    <!-- ── BUYER PANEL ──────────────────────────────────────────────────────── -->
+    <div id="panel-buyer" class="role-panel active">
+      <div class="grid-2">
+
+        <!-- Purchase Storage Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon icon-purple">🛒</div>
+            <div>
+              <h3>Purchase Storage</h3>
+              <p style="margin:0;font-size:0.82rem">Pay with POL tokens via MetaMask</p>
+            </div>
+          </div>
+
+          <div id="buyer-wallet-alert" class="alert alert-warn" style="display:none">
+            ⚠️ Please connect your MetaMask wallet first.
+          </div>
+
+          <div class="form-group">
+            <label>Storage Amount (MB)</label>
+            <input type="number" id="input-storage-mb" min="100" step="100" value="500"
+                   placeholder="e.g. 500"
+                   oninput="updatePricePreview()" />
+          </div>
+
+          <div class="alert alert-info" id="price-preview">
+            💡 Cost: <strong id="cost-preview">0.05</strong> POL for
+            <strong id="mb-preview">500</strong> MB
+          </div>
+
+          <button class="btn btn-primary" style="width:100%"
+                  id="btn-buy-storage"
+                  onclick="handleBuyStorage()">
+            💳 Pay &amp; Allocate Storage
+          </button>
+
+          <div id="tx-result" style="margin-top:1rem;display:none" class="alert alert-success"></div>
+        </div>
+
+        <!-- How It Works Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon icon-cyan">📖</div>
+            <div><h3>How It Works</h3></div>
+          </div>
+          <ol class="step-list">
+            <li><div><strong>Connect MetaMask</strong><br><span style="color:var(--text-muted);font-size:0.85rem">Polygon Amoy Testnet (free test POL from faucet)</span></div></li>
+            <li><div><strong>Choose storage size</strong><br><span style="color:var(--text-muted);font-size:0.85rem">100 MB = 0.01 POL. Pay instantly via MetaMask</span></div></li>
+            <li><div><strong>Upload files</strong><br><span style="color:var(--text-muted);font-size:0.85rem">Files are encrypted, split into 5 MB chunks &amp; distributed</span></div></li>
+            <li><div><strong>Download anytime</strong><br><span style="color:var(--text-muted);font-size:0.85rem">Chunks are reassembled and decrypted on demand</span></div></li>
+          </ol>
+          <a href="upload.html" class="btn btn-outline" style="width:100%;justify-content:center;margin-top:1rem">
+            📁 Go to My Files →
+          </a>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── SELLER PANEL ─────────────────────────────────────────────────────── -->
+    <div id="panel-seller" class="role-panel">
+      <div class="grid-2">
+
+        <!-- Connect Dropbox Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon icon-cyan">📦</div>
+            <div>
+              <h3>Connect Dropbox</h3>
+              <p style="margin:0;font-size:0.82rem">Link your Dropbox to contribute storage</p>
+            </div>
+          </div>
+
+          <div class="alert alert-info" style="font-size:0.82rem;margin-bottom:1rem">
+            ℹ️ Generate a Dropbox access token at
+            <a href="https://www.dropbox.com/developers/apps" target="_blank">dropbox.com/developers</a>
+            and paste it below.
+          </div>
+
+          <div class="form-group">
+            <label>Dropbox Access Token</label>
+            <input type="password" id="input-dropbox-token"
+                   placeholder="sl.XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" />
+          </div>
+
+          <button class="btn btn-primary" style="width:100%" onclick="handleConnectDropbox()">
+            🔗 Connect Dropbox
+          </button>
+          <div id="dropbox-result" style="margin-top:0.75rem"></div>
+        </div>
+
+        <!-- Register Storage Card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon icon-green">📡</div>
+            <div>
+              <h3>Register Storage</h3>
+              <p style="margin:0;font-size:0.82rem">Contribute space to the pool</p>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Storage to Share (MB)</label>
+            <input type="number" id="input-register-mb" min="100" step="100" value="1000"
+                   placeholder="e.g. 2000" />
+          </div>
+
+          <div class="alert alert-warn" style="font-size:0.82rem;margin-bottom:1rem">
+            ⚠️ You must connect Dropbox before registering. The amount you share
+            must be available in your Dropbox account.
+          </div>
+
+          <button class="btn btn-primary" style="width:100%" onclick="handleRegisterStorage()">
+            ✅ Register Storage Node
+          </button>
+          <div id="register-result" style="margin-top:0.75rem"></div>
+        </div>
+
+      </div>
+
+      <!-- Seller benefits -->
+      <div class="card" style="margin-top:1.2rem">
+        <div class="card-header">
+          <div class="card-icon icon-purple">💰</div>
+          <div><h3>Why Become a Seller?</h3></div>
+        </div>
+        <div class="grid-3" style="margin-top:0.5rem">
+          <div style="padding:1rem;background:var(--bg-base);border-radius:var(--radius-sm)">
+            <div style="font-size:1.5rem;margin-bottom:0.4rem">🚀</div>
+            <h3 style="font-size:0.95rem;margin-bottom:0.3rem">Monetise Idle Space</h3>
+            <p style="font-size:0.83rem;margin:0">Turn that unused Dropbox quota into POL tokens on the Polygon network.</p>
+          </div>
+          <div style="padding:1rem;background:var(--bg-base);border-radius:var(--radius-sm)">
+            <div style="font-size:1.5rem;margin-bottom:0.4rem">🔒</div>
+            <h3 style="font-size:0.95rem;margin-bottom:0.3rem">Zero Risk</h3>
+            <p style="font-size:0.83rem;margin:0">Files are encrypted before chunking — you never see the buyer's data.</p>
+          </div>
+          <div style="padding:1rem;background:var(--bg-base);border-radius:var(--radius-sm)">
+            <div style="font-size:1.5rem;margin-bottom:0.4rem">⚡</div>
+            <h3 style="font-size:0.95rem;margin-bottom:0.3rem">Instant Setup</h3>
+            <p style="font-size:0.83rem;margin:0">Connect wallet + Dropbox in under 2 minutes. No servers to run.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ── Footer ──────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="container">
+    <p>RentAByte — Built for hackathon demonstration on Polygon Amoy Testnet</p>
+    <p style="margin-top:0.3rem">
+      <a href="https://faucet.polygon.technology" target="_blank">Get Test POL</a> ·
+      <a href="https://amoy.polygonscan.com" target="_blank">Block Explorer</a> ·
+      <a href="https://www.dropbox.com/developers" target="_blank">Dropbox Dev</a>
+    </p>
+  </div>
+</footer>
+
+<!-- ── Scripts ─────────────────────────────────────────────────────────────── -->
+<script src="app.js"></script>
+<script>
+  // ── Page-specific config ────────────────────────────────────────────────
+  // Override these via your deployment environment or hardcode after Hardhat deploy
+  window.RENTABYTE_API_BASE        = "http://localhost:8000";
+  window.RENTABYTE_CONTRACT        = "";          // e.g. "0xYourContract"
+  window.RENTABYTE_PLATFORM_WALLET = "";          // fallback wallet if no contract
+
+  // ── Init ────────────────────────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", async () => {
+    await RentAByte.loadStoragePool();
+    updatePricePreview();
+    // Auto-reconnect if MetaMask was already connected
+    if (window.ethereum) {
+      const accounts = await window.ethereum.request({ method: "eth_accounts" });
+      if (accounts.length > 0) await connectWallet();
+    }
+  });
+
+  // ── Role Tabs ───────────────────────────────────────────────────────────
+  function switchRole(role) {
+    document.querySelectorAll(".role-tab").forEach((t, i) => {
+      t.classList.toggle("active", (i === 0 ? "buyer" : "seller") === role);
+    });
+    document.getElementById("panel-buyer").classList.toggle("active", role === "buyer");
+    document.getElementById("panel-seller").classList.toggle("active", role === "seller");
+  }
+
+  // ── Price Preview ────────────────────────────────────────────────────────
+  function updatePricePreview() {
+    const mb   = parseInt(document.getElementById("input-storage-mb").value, 10) || 0;
+    const cost = RentAByte.polRequired(mb);
+    document.getElementById("cost-preview").textContent = cost;
+    document.getElementById("mb-preview").textContent   = mb;
+  }
+
+  // ── Handlers ─────────────────────────────────────────────────────────────
+  async function handleConnectWallet() {
+    await connectWallet();
+  }
+
+  async function handleBuyStorage() {
+    if (!RentAByte.State.walletAddress) {
+      document.getElementById("buyer-wallet-alert").style.display = "";
+      await handleConnectWallet();
+      return;
+    }
+    document.getElementById("buyer-wallet-alert").style.display = "none";
+
+    const mb  = parseInt(document.getElementById("input-storage-mb").value, 10);
+    const btn = document.getElementById("btn-buy-storage");
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Processing…';
+
+    try {
+      const { txHash } = await RentAByte.requestStorage(mb);
+      const result = document.getElementById("tx-result");
+      result.style.display = "";
+      result.innerHTML = `✅ Storage allocated! Tx: <code style="font-size:0.8rem">${txHash}</code>
+        <br><a href="upload.html" class="btn btn-outline" style="margin-top:0.5rem;display:inline-flex">📁 Upload Files →</a>`;
+    } catch (err) {
+      RentAByte.showToast(err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '💳 Pay &amp; Allocate Storage';
+    }
+  }
+
+  async function handleConnectDropbox() {
+    if (!RentAByte.State.walletAddress) { await handleConnectWallet(); return; }
+    const token = document.getElementById("input-dropbox-token").value.trim();
+    if (!token) { RentAByte.showToast("Enter a Dropbox token.", "warn"); return; }
+
+    try {
+      const data = await RentAByte.connectDropbox(token);
+      const el   = document.getElementById("dropbox-result");
+      el.innerHTML = `<div class="alert alert-success">✅ ${data.message}</div>`;
+    } catch (err) {
+      document.getElementById("dropbox-result").innerHTML =
+        `<div class="alert alert-error">❌ ${err.message}</div>`;
+    }
+  }
+
+  async function handleRegisterStorage() {
+    if (!RentAByte.State.walletAddress) { await handleConnectWallet(); return; }
+    const mb = document.getElementById("input-register-mb").value;
+
+    try {
+      const data = await RentAByte.registerStorage(mb);
+      document.getElementById("register-result").innerHTML =
+        `<div class="alert alert-success">✅ Node #${data.node_id} registered with ${data.registered_mb} MB</div>`;
+    } catch (err) {
+      document.getElementById("register-result").innerHTML =
+        `<div class="alert alert-error">❌ ${err.message}</div>`;
+    }
+  }
+</script>
+</body>
+</html>
