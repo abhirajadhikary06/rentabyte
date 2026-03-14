@@ -1,5 +1,5 @@
-import "@nomicfoundation/hardhat-toolbox";
-import "dotenv/config";
+require("@nomicfoundation/hardhat-toolbox");
+require("dotenv").config();
 
 /**
  * Hardhat configuration for RentAByte smart contract.
@@ -12,10 +12,19 @@ import "dotenv/config";
  *   4. npx hardhat run scripts/deploy.js --network amoy
  */
 
-const PRIVATE_KEY = process.env.DEPLOYER_PRIVATE_KEY || "0x" + "0".repeat(64);
+const privateKeyRaw = (process.env.DEPLOYER_PRIVATE_KEY || "").trim();
+const isPrivateKeyFormatValid = /^0x[a-fA-F0-9]{64}$/.test(privateKeyRaw);
+const amoyAccounts = isPrivateKeyFormatValid ? [privateKeyRaw] : [];
+
+if (!isPrivateKeyFormatValid) {
+  console.warn(
+    "[Hardhat] DEPLOYER_PRIVATE_KEY is missing or invalid. " +
+      "Set a 32-byte hex key in root .env (DEPLOYER_PRIVATE_KEY=0x...)."
+  );
+}
 
 /** @type import('hardhat/config').HardhatUserConfig */
-export default {
+module.exports = {
   solidity: {
     version: "0.8.20",
     settings: {
@@ -32,7 +41,7 @@ export default {
     amoy: {
       url: process.env.POLYGON_RPC_URL || "https://rpc-amoy.polygon.technology",
       chainId: 80002,
-      accounts: [PRIVATE_KEY],
+      accounts: amoyAccounts,
       gasPrice: "auto",
     },
   },

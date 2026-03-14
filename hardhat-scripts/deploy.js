@@ -9,17 +9,23 @@
  *   - frontend/app.js  →  CONTRACT_ADDRESS constant
  */
 
-import { ethers } from "hardhat";
+const { ethers } = require("hardhat");
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const signers = await ethers.getSigners();
+  if (signers.length === 0) {
+    throw new Error(
+      "No deployer account configured. Set DEPLOYER_PRIVATE_KEY=0x... in root .env"
+    );
+  }
+  const [deployer] = signers;
   console.log("Deploying RentAByte with account:", deployer.address);
 
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log("Account balance:", ethers.formatEther(balance), "POL");
 
-  // 0.01 POL = 10_000_000_000_000_000 wei per 100 MB
-  const pricePerHundredMBWei = ethers.parseEther("0.01");
+  // 0.001 POL = 1_000_000_000_000_000 wei per 100 MB
+  const pricePerHundredMBWei = ethers.parseEther("0.001");
 
   const RentAByte = await ethers.getContractFactory("RentAByte");
   const contract = await RentAByte.deploy(pricePerHundredMBWei);
