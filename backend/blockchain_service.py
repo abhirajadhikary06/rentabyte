@@ -12,7 +12,7 @@ import os
 from web3 import Web3
 from web3.exceptions import TransactionNotFound
 from dotenv import load_dotenv
-load_dotenv()  # Load .env file for local development
+load_dotenv()
 # ── RPC Configuration ──────────────────────────────────────────────────────
 
 POLYGON_AMOY_RPC = os.getenv(
@@ -28,6 +28,7 @@ POL_PER_100MB = float(os.getenv("POL_PER_100MB", "0.001"))
 
 # Platform wallet that receives payments
 PLATFORM_WALLET = os.getenv("PLATFORM_WALLET", "").lower()
+PLATFORM_PRIVATE_KEY = os.getenv("PLATFORM_PRIVATE_KEY", "").strip()
 
 w3 = Web3(Web3.HTTPProvider(POLYGON_AMOY_RPC))
 
@@ -44,6 +45,61 @@ def get_expected_wei(storage_mb: int) -> int:
     """
     pol_amount = (storage_mb / 100) * POL_PER_100MB
     return w3.to_wei(pol_amount, "ether")
+
+
+def get_seller_reward_wei(storage_mb: int) -> int:
+    """Seller reward uses the same 100 MB pricing unit as buyers."""
+    return get_expected_wei(storage_mb)
+
+
+def send_seller_reward(seller_wallet: str, storage_mb: int) -> dict:
+    """Send native POL reward to a seller after storage verification."""
+    if not w3.is_connected():
+        raise RuntimeError("Cannot connect to Polygon RPC")
+
+    if not PLATFORM_PRIVATE_KEY:
+        raise RuntimeError("PLATFORM_PRIVATE_KEY is not configured")
+
+    account = w3.eth.account.from_key(PLATFORM_PRIVATE_KEY)
+    sender = account.address.lower()
+    expected_sender = PLATFORM_WALLET.lower() if PLATFORM_WALLET else sender
+
+    if PLATFORM_WALLET and sender != expected_sender:
+        raise RuntimeError("PLATFORM_PRIVATE_KEY does not match PLATFORM_WALLET")
+
+    reward_wei = get_seller_reward_wei(storage_mb)
+    nonce = w3.eth.get_transaction_count(account.address, "pending")
+    gas_price = w3.eth.gas_price
+
+    tx = {
+        "chainId": w3.eth.chain_id,
+        "nonce": nonce,
+        "to": Web3.to_checksum_address(seller_wallet),
+        "value": reward_wei,
+        "gas": 21000,
+        "gasPrice": gas_price,
+    }
+
+    estimated_cost = reward_wei + (tx["gas"] * gas_price)
+    balance = w3.eth.get_balance(account.address)
+    if balance < estimated_cost:
+        raise RuntimeError("Platform wallet has insufficient balance for seller reward")
+
+    signed_tx = account.sign_transaction(tx)
+    raw_tx = getattr(signed_tx, "rawTransaction", None)
+    if raw_tx is None:
+        raw_tx = getattr(signed_tx, "raw_transaction", None)
+    if raw_tx is None:
+        raise RuntimeError("Unable to read signed transaction bytes")
+
+    tx_hash = w3.eth.send_raw_transaction(raw_tx)
+
+    return {
+        "tx_hash": tx_hash.hex(),
+        "reward_wei": reward_wei,
+        "reward_pol": float(w3.from_wei(reward_wei, "ether")),
+        "sender_wallet": account.address,
+    }
 
 
 def verify_transaction(tx_hash: str, buyer_wallet: str, storage_mb: int) -> dict:

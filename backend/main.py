@@ -6,10 +6,12 @@ Run locally:
     uvicorn main:app --reload --port 8000
 """
 
-import os
+from pathlib import Path
+
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from database import init_db, get_connection
 from models import (
@@ -22,6 +24,8 @@ from models import (
 import dropbox_service
 import blockchain_service
 import storage_service
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 # ── App Setup ──────────────────────────────────────────────────────────────
 
@@ -174,6 +178,17 @@ def register_storage(req: RegisterStorageRequest):
         RETURNING node_id
     """, (user["id"], requested_bytes, requested_bytes))
     node_id = cursor.fetchone()["node_id"]
+
+    try:
+        reward = blockchain_service.send_seller_reward(wallet, req.storage_mb)
+    except Exception as exc:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(
+            status_code=502,
+            detail=f"Storage reward payment failed: {exc}"
+        )
+
     conn.commit()
     conn.close()
 
@@ -181,6 +196,8 @@ def register_storage(req: RegisterStorageRequest):
         success=True,
         node_id=node_id,
         registered_mb=req.storage_mb,
+        reward_tx_hash=reward["tx_hash"],
+        reward_pol=reward["reward_pol"],
     )
 
 
@@ -370,3 +387,13 @@ def download_file(
             "Content-Disposition": f'attachment; filename="{original_name}"'
         },
     )
+
+
+# ── Frontend Static App (Python + HTML same-origin deployment) ────────────
+
+@app.get("/", include_in_schema=False)
+def landing():
+    return FileResponse(str(FRONTEND_DIR / "landing.html"))
+
+if FRONTEND_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

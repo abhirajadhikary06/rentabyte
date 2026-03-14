@@ -42,6 +42,8 @@ class RegisterStorageResponse(BaseModel):
     success: bool
     node_id: int
     registered_mb: int
+    reward_tx_hash: str
+    reward_pol: float
 
 
 # ── Storage Pool ─────────────────────────────────────────────────────────────
